@@ -1,25 +1,197 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Analysis of Step Activity for Peer Assessment #1 Of Coursera Reproducible Research Course"
+date: "10/16/2014"
+output: html_document
 ---
 
+This is the R markdown document for the Peer Assessment #1 in Coursera Reproducible Research Course
 
-## Loading and preprocessing the data
+1. Import activity file and change column names to improve readability. convert date to days and then create new factor called DayOrEnd to distinguish between Weekend and Weekday activity
+
+```{r, echo=TRUE, results='hide'}
+
+##Read Activity File In and Change Column Names For Better Reading
+activity<-read.csv("./activity.csv", header=TRUE, na.string="NA")
+colnames(activity)[colnames(activity) == "date"]<-"Date"
+colnames(activity)[colnames(activity) == "steps"]<-"Steps"
+colnames(activity)[colnames(activity) == "interval"]<-"Interval" 
+
+##Convert Date to Days, Create FActor Variable Called Weekend and Weekday
+
+activity$Day <- weekdays(as.Date(activity$Date))
+
+for(i in 1:nrow(activity)) {
+        if(activity$Day[i] == "Saturday" | activity$Day[i] == "Sunday"){
+                activity$DayOrEnd[i]<-"Weekend"
+        }
+        else {
+                activity$DayOrEnd[i]<-"Weekday"
+        }
+}
+
+DayOrEnd<-activity$DayOrEnd
+
+``` 
+2. Sum up total number of steps by date
 
 
+```{r, echo=TRUE, results='hide'}
 
-## What is mean total number of steps taken per day?
+as.numeric(activity$Steps)
+sumupdate<-aggregate(activity$Steps~activity$Date, activity, sum, na.rm=TRUE, na.action="na.pass")
 
+colnames(sumupdate)[colnames(sumupdate) == "activity$Date"] <- 'Date'
+colnames(sumupdate)[colnames(sumupdate) == "activity$Steps"] <- 'Steps'
 
+sumupdate$Steps<-as.numeric(sumupdate$Steps)
+totalsteps<-sum(sumupdate$Steps)
 
-## What is the average daily activity pattern?
+```
+3. Calculate the mean and median of steps taken by date, print them and create histogram plot
 
+```{r, echo=TRUE}
 
+meansteps<-mean(sumupdate$Steps, na.rm=TRUE)
+cat("Mean number of steps across all days:", meansteps, "\n")
 
-## Imputing missing values
+mediansteps<-median(sumupdate$Steps, na.rm=TRUE)
+cat("Median number of steps per day across all days:", mediansteps, "\n")
 
+hist(sumupdate$Steps, main="Histogram of Total Steps Taken",xlab="Steps")
+abline(v = meansteps, col = "red", lwd = 3)
+abline(v=mediansteps, col="blue", lwd=3)
+legend("topright", c("Mean", "Median"), fill=c("red", "blue"))
 
+```
+4. Calculate average number of steps per interval, create time plot and calculate interval with maximum steps taken. 
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r, echo=TRUE, results='hide'}
+meanstepint<-aggregate(Steps~Interval, activity, mean, na.rm=TRUE, na.action="na.pass")
+
+colnames(meanstepint)[colnames(meanstepint) == "Interval"] <- 'Interval'
+colnames(meanstepint)[colnames(meanstepint) == "Steps"] <- 'MeanSteps'
+
+```
+5. Create a plot of mean steps taken per interval
+
+```{r, echo=TRUE}
+library(ggplot2)
+meanwithoutna<-meanstepint[complete.cases(meanstepint),]
+timemeanplot<-ggplot(data = meanwithoutna, aes(x = meanwithoutna$Interval, y = meanwithoutna$MeanSteps))
+timemeanplot<- timemeanplot + geom_point()
+timemeanplot<- timemeanplot + xlab("Interval") + ylab("Steps") + ggtitle("Average Steps Taken Over Course Of Day")
+timemeanplot
+```
+```{r, echo=FALSE, results='hide'}
+
+print("\n")
+
+```
+6. Find interval with most mean steps and print
+
+```{r}
+maxin=max(meanstepint$MeanSteps, na.rm=TRUE)
+result=meanstepint[which(meanstepint$MeanSteps==maxin),]
+cat("Time interval with most average steps:", result$Interval, "with an average of", result$MeanSteps, "steps", "\n")
+
+```
+7. Calculate number of NAs in Activity dataframe and produce new dataframe replacing NAs with mean steps for interval where NA is. For instance, if an NA appears in Interval 10, the mean steps for Interval 10 will be used as number of steps. 
+
+```{r, echo=TRUE}
+
+navalues<-activity[!complete.cases(activity),]
+numberofnas<-nrow(navalues)
+cat("Number of NAs in Activity Dataframe:", numberofnas, "\n")
+
+```
+8. What does the number of NAs suggest here? That NAs do not account for a significant number of entries, compared to more than 17,000 rows overall. Perhaps, worrying about them was a waste of time.
+
+```{r, echo=TRUE, results='hide'}
+
+## Produce new dataframe with NAs replaced by mean steps of intervals
+
+merger<-merge(activity, meanstepint, by="Interval")
+
+for(i in 1:nrow(merger)) {
+                if(is.na(merger$Steps[i])) {
+                        intervalMean <- merger[i,6]
+                        merger$Steps[i] <- intervalMean
+                }
+        }
+
+## Drop Mean Steps column and put rest of Merger results into new variable Nonaactivity
+
+drops <- "MeanSteps"
+nonaactivity<-merger[,!(names(merger) %in% drops)]
+
+newsumupdate<-aggregate(Steps~Date, nonaactivity, sum, na.rm=TRUE, na.action="na.pass")
+
+colnames(newsumupdate)[colnames(newsumupdate) == "Date"] <- 'Date'
+colnames(newsumupdate)[colnames(newsumupdate) == "Steps"] <- 'Steps'
+
+newsumupdate<-aggregate(nonaactivity$Steps~nonaactivity$Date, nonaactivity, sum, na.rm=TRUE, na.action="na.pass")
+
+totalnewsteps<-sum(newsumupdate$Steps)
+
+```
+9. Calculate mean, median and plot histogram of NA-free dataframe
+
+```{r, echo=TRUE}
+### Calculate Mean of New Dataframe
+
+nonameansteps<-mean(newsumupdate$Steps)
+cat("Mean number of steps across all days without NAs:", nonameansteps, "\n")
+
+## Calculate Median of New Dataframe
+
+nonamediansteps<-median(newsumupdate$Steps)
+cat("Median number of steps per day across all days without NAs:", nonamediansteps, "\n")
+
+```
+```{r, echo=FALSE, results='hide'}
+print("\n")
+```
+10. What does the new mean, median and histogram say about the new dataframe? With NAs gone, the mean and median are the same. Compared to the non-NA dataframe, the mean is greater and the median less. In conclusion, converting the 2,304 NAs into mean steps for the intervals they appear in has helped elevated the mean by roughly 1,400 steps and the median by roughly 400 steps. That's not a lot of steps, compared to overall count. Perhaps, it wouldn't have mattered filling the table up?
+
+11. After converting dates to days and creating new Weekday or Weekend variable factor, now calculating new mean steps per interval and make panel plot of new activity, without NAs, comparing Weekend vs. Weekday activity.   
+
+```{r, echo=TRUE, results='hide'}
+
+## Calculate Mean Steps Per Interval With NAs Excluded By Aggregating Steps and Interval
+
+newmeanstepint<-aggregate(Steps~Interval, nonaactivity, mean)
+
+colnames(newmeanstepint)[colnames(newmeanstepint) == "Interval"] <- 'Interval'
+colnames(newmeanstepint)[colnames(newmeanstepint) == "Steps"] <- 'NewMeanSteps'
+
+newactdata<-merge(nonaactivity, newmeanstepint, by="Interval")
+
+```
+12. Calculate mean steps per interval over weekdays vs. weekends, bind together into one file, round step numbers and plot.
+
+```{r, echo=TRUE, results="hide"}
+
+weekdayact<-newactdata[newactdata$DayOrEnd=="Weekday",]
+weekdayactmean<-aggregate(Steps~Interval, weekdayact, mean)
+weekendact<-newactdata[newactdata$DayOrEnd=="Weekend",]
+weekendactmean<-aggregate(Steps~Interval, weekendact, mean)
+weekendactmean$DayOrEnd<-"Weekend"
+weekdayactmean$DayOrEnd<-"Weekday"
+
+dayend<-rbind(weekendactmean, weekdayactmean)
+dayend$Steps<-round(dayend$Steps, 3)
+
+```
+13. Create panel plots to show activity differences between weekend days and weekday days
+
+```{r, echo=FALSE}
+
+panel1 <- ggplot(dayend, aes(Interval, Steps))+facet_grid(DayOrEnd~.)+ geom_point() +xlab("Interval") + ylab("Steps") + ggtitle("Average Daily Number of Steps Taken On Weekdays Vs. Weekends") 
+
+print(panel1)
+print("\n")
+
+```      
+13. Conclusion: it looks like participants on weekends waited until later in the day to walk than on the weekdays, when activity tended to peak around 850 and fall fairly rapidly rebounding in their subsequent peaks at one-fourth to one-third the height of the first and highest peak. 
+
+With weekend activity, the highest peak happened at roughly 850 but not at nearly the height of the weekday's and perhaps one-fourth higher than the peaks that followed. Walking activites went later (past 2000) on the weekends than on the weekdays. 
